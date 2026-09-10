@@ -45,74 +45,74 @@ export default function Homepage() {
 	const data = useLoaderData<typeof loader>();
 
 	return (
-		<div className="flex flex-col gap-16 pb-16 bg-neutral-950 text-white min-h-screen">
-			{/* Hero Section */}
-			<section className="relative overflow-hidden py-20 sm:py-28 px-4 sm:px-6 lg:px-8 border-b border-neutral-800">
-				<div className="max-w-7xl mx-auto relative z-10">
-					<div className="max-w-2xl">
-						<span className="inline-block bg-white/10 text-white text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4 border border-white/20">
-							Engineered Protection
-						</span>
-						<h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight mb-6">
-							Style meets relentless durability.
-						</h1>
-						<p className="text-lg sm:text-xl text-neutral-400 mb-8 leading-relaxed">
-							Explore 10ft drop-tested designer phone cases crafted with
-							military-grade shock absorption and precision MagSafe alignment.
-						</p>
-						<div className="flex flex-wrap gap-4">
-							<Link to="/collections">
-								<Button
-									variant="secondary"
-									className="px-8 py-3 text-base font-bold bg-white text-black hover:bg-neutral-200"
-								>
-									Shop All Cases
-								</Button>
-							</Link>
-							<Link to="/products/midnight-marble">
-								<Button
-									variant="primary"
-									className="border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 px-8 py-3 text-base"
-								>
-									View Bestseller
-								</Button>
-							</Link>
-						</div>
-					</div>
-				</div>
+    <div className="flex flex-col gap-16 pb-16 bg-neutral-950 text-white min-h-screen">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden py-20 sm:py-28 px-4 sm:px-6 lg:px-8 border-b border-neutral-800">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="max-w-2xl">
+            <span className="inline-block bg-white/10 text-white text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-4 border border-white/20">
+              Engineered Protection
+            </span>
+            <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight mb-6">
+              Style meets relentless durability.
+            </h1>
+            <p className="text-lg sm:text-xl text-neutral-400 mb-8 leading-relaxed">
+              Explore 10ft drop-tested designer phone cases crafted with
+              military-grade shock absorption and precision MagSafe alignment.
+            </p>
+            <div className="flex flex-wrap gap-4 mt-3">
+              <Link to="/products">
+                <Button
+                  variant="secondary"
+                  className="px-8 py-3 text-base font-bold bg-white text-black hover:bg-neutral-200"
+                >
+                  Shop All Cases
+                </Button>
+              </Link>
+              <Link to="/products/midnight-marble">
+                <Button
+                  variant="primary"
+                  className="border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 px-8 py-3 text-base"
+                >
+                  View Bestseller
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
 
-				{/* Ambient Glow */}
-				<div className="absolute top-1/2 right-10 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 blur-3xl rounded-full pointer-events-none" />
-			</section>
+        {/* Ambient Glow */}
+        <div className="absolute top-1/2 right-10 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 blur-3xl rounded-full pointer-events-none" />
+      </section>
 
-			{/* Trust Badges */}
-			<section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-y border-neutral-800 py-8 text-center md:text-left">
-					<div className="px-4">
-						<h4 className="font-bold text-white mb-1">10ft Drop Certified</h4>
-						<p className="text-sm text-neutral-400">
-							Multi-layer polycarbonate guards against daily drops.
-						</p>
-					</div>
-					<div className="px-4 md:border-l border-neutral-800">
-						<h4 className="font-bold text-white mb-1">MagSafe Compatible</h4>
-						<p className="text-sm text-neutral-400">
-							Embedded neodymium magnets for snap-on wireless charging.
-						</p>
-					</div>
-					<div className="px-4 md:border-l border-neutral-800">
-						<h4 className="font-bold text-white mb-1">Lifetime Warranty</h4>
-						<p className="text-sm text-neutral-400">
-							Guaranteed protection against discoloration and defects.
-						</p>
-					</div>
-				</div>
-			</section>
+      {/* Trust Badges */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-y border-neutral-800 py-8 text-center md:text-left">
+          <div className="px-4">
+            <h4 className="font-bold text-white mb-1">10ft Drop Certified</h4>
+            <p className="text-sm text-neutral-400">
+              Multi-layer polycarbonate guards against daily drops.
+            </p>
+          </div>
+          <div className="px-4 md:border-l border-neutral-800">
+            <h4 className="font-bold text-white mb-1">MagSafe Compatible</h4>
+            <p className="text-sm text-neutral-400">
+              Embedded neodymium magnets for snap-on wireless charging.
+            </p>
+          </div>
+          <div className="px-4 md:border-l border-neutral-800">
+            <h4 className="font-bold text-white mb-1">Lifetime Warranty</h4>
+            <p className="text-sm text-neutral-400">
+              Guaranteed protection against discoloration and defects.
+            </p>
+          </div>
+        </div>
+      </section>
 
-			{/* Live Featured Cases Grid */}
-			<FeaturedProductsSection products={data.recommendedProducts} />
-		</div>
-	);
+      {/* Live Featured Cases Grid */}
+      <FeaturedProductsSection products={data.recommendedProducts} />
+    </div>
+  );
 }
 
 function FeaturedProductsSection({
@@ -132,7 +132,7 @@ function FeaturedProductsSection({
 					</p>
 				</div>
 				<Link
-					to="/cases"
+					to="/products"
 					className="text-sm font-semibold text-neutral-300 hover:text-white underline underline-offset-4"
 				>
 					View all cases &rarr;

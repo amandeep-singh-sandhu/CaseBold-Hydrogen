@@ -102,7 +102,7 @@ export default function Product() {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-6">
         <Link
-          to="/collections"
+          to="/products"
           className="text-sm font-medium text-gray-500 hover:text-black inline-flex items-center gap-1 transition-colors"
         >
           &larr; Back to all cases
@@ -129,7 +129,8 @@ export default function Product() {
           </h1>
 
           <div className="text-2xl font-bold text-gray-900 mb-6">
-            {selectedVariant?.price.amount} {selectedVariant?.price.currencyCode}
+            {selectedVariant?.price.amount}{' '}
+            {selectedVariant?.price.currencyCode}
           </div>
 
           <p className="text-base text-gray-600 leading-relaxed mb-6">
