@@ -26,10 +26,13 @@ export const CART_QUERY_FRAGMENT = `#graphql
       ... on ProductVariant {
         id
         availableForSale
+        quantityAvailable
         compareAtPrice {
           ...Money
         }
         price {
+          amount
+          currencyCode
           ...Money
         }
         requiresShipping
@@ -40,7 +43,6 @@ export const CART_QUERY_FRAGMENT = `#graphql
           altText
           width
           height
-
         }
         product {
           handle
@@ -52,6 +54,12 @@ export const CART_QUERY_FRAGMENT = `#graphql
           name
           value
         }
+      }
+    }
+    cost {
+      totalAmount {
+        amount
+        currencyCode
       }
     }
     parentRelationship {

@@ -1,113 +1,123 @@
-import {useLoaderData, data, type HeadersFunction} from 'react-router';
-import type {Route} from './+types/cart';
-import type {CartQueryDataReturn} from '@shopify/hydrogen';
+import type {ActionFunctionArgs, LoaderFunctionArgs} from 'react-router';
+import {useLoaderData, Link} from 'react-router';
 import {CartForm} from '@shopify/hydrogen';
 import {CartMain} from '~/components/CartMain';
+import {Button} from '~/components/Button';
 
-export const meta: Route.MetaFunction = () => {
-  return [{title: `Hydrogen | Cart`}];
+export const meta = () => {
+  return [
+    {title: 'Shopping Cart | CaseBold'},
+    {description: 'Review your selected items and proceed to checkout.'},
+  ];
 };
 
-export const headers: HeadersFunction = ({actionHeaders}) => actionHeaders;
-
-export async function action({request, context}: Route.ActionArgs) {
+export async function action({request, context}: ActionFunctionArgs) {
   const {cart} = context;
-
   const formData = await request.formData();
-
   const {action, inputs} = CartForm.getFormInput(formData);
 
-  if (!action) {
-    throw new Error('No action provided');
+  let result;
+
+  try {
+    switch (action) {
+      case CartForm.ACTIONS.LinesAdd:
+        result = await cart.addLines(inputs.lines);
+        break;
+      case CartForm.ACTIONS.LinesUpdate:
+        result = await cart.updateLines(inputs.lines);
+        break;
+      case CartForm.ACTIONS.LinesRemove:
+        result = await cart.removeLines(inputs.lineIds);
+        break;
+      case CartForm.ACTIONS.DiscountCodesUpdate: {
+        const formDiscountCode = inputs.discountCode;
+        const discountCodes = (
+          formDiscountCode ? [formDiscountCode] : ['']
+        ) as string[];
+        discountCodes.push(...inputs.discountCodes);
+        result = await cart.updateDiscountCodes(discountCodes);
+        break;
+      }
+      case CartForm.ACTIONS.GiftCardCodesAdd:
+        result = await cart.addGiftCardCodes(inputs.giftCardCodes);
+        break;
+      case CartForm.ACTIONS.GiftCardCodesRemove:
+        result = await cart.removeGiftCardCodes(inputs.giftCardCodes);
+        break;
+      default:
+        throw new Response(`Unhandled action: ${action}`, {status: 400});
+    }
+  } catch (error: any) {
+    return Response.json({error: error.message}, {status: 400});
   }
 
-  let status = 200;
-  let result: CartQueryDataReturn;
-
-  switch (action) {
-    case CartForm.ACTIONS.LinesAdd:
-      result = await cart.addLines(inputs.lines);
-      break;
-    case CartForm.ACTIONS.LinesUpdate:
-      result = await cart.updateLines(inputs.lines);
-      break;
-    case CartForm.ACTIONS.LinesRemove:
-      result = await cart.removeLines(inputs.lineIds);
-      break;
-    case CartForm.ACTIONS.DiscountCodesUpdate: {
-      const formDiscountCode = inputs.discountCode;
-
-      // User inputted discount code
-      const discountCodes = (
-        formDiscountCode ? [formDiscountCode] : []
-      ) as string[];
-
-      // Combine discount codes already applied on cart
-      discountCodes.push(...inputs.discountCodes);
-
-      result = await cart.updateDiscountCodes(discountCodes);
-      break;
-    }
-    case CartForm.ACTIONS.GiftCardCodesAdd: {
-      const formGiftCardCode = inputs.giftCardCode;
-
-      const giftCardCodes = (
-        formGiftCardCode ? [formGiftCardCode] : []
-      ) as string[];
-
-      result = await cart.addGiftCardCodes(giftCardCodes);
-      break;
-    }
-    case CartForm.ACTIONS.GiftCardCodesRemove: {
-      const appliedGiftCardIds = inputs.giftCardCodes as string[];
-      result = await cart.removeGiftCardCodes(appliedGiftCardIds);
-      break;
-    }
-    case CartForm.ACTIONS.BuyerIdentityUpdate: {
-      result = await cart.updateBuyerIdentity({
-        ...inputs.buyerIdentity,
-      });
-      break;
-    }
-    default:
-      throw new Error(`${action} cart action is not defined`);
-  }
-
-  const cartId = result?.cart?.id;
-  const headers = cartId ? cart.setCartId(result.cart.id) : new Headers();
-  const {cart: cartResult, errors, warnings} = result;
-
-  const redirectTo = formData.get('redirectTo') ?? null;
-  if (typeof redirectTo === 'string') {
-    status = 303;
-    headers.set('Location', redirectTo);
-  }
-
-  return data(
-    {
-      cart: cartResult,
-      errors,
-      warnings,
-      analytics: {
-        cartId,
-      },
-    },
-    {status, headers},
-  );
+  const headers = cart.setCartId(result.cart.id);
+  return Response.json(result, {status: 200, headers});
 }
 
-export async function loader({context}: Route.LoaderArgs) {
+export async function loader({context}: LoaderFunctionArgs) {
   const {cart} = context;
-  return await cart.get();
+  return {cart: await cart.get()};
 }
 
-export default function Cart() {
-  const cart = useLoaderData<typeof loader>();
+export default function CartRoute() {
+  const {cart} = useLoaderData<typeof loader>();
+
+  // Collect all line IDs to remove all items at once
+  const lineIds = cart?.lines?.nodes?.map((line: any) => line.id) || [];
+  const hasItems = lineIds.length > 0;
 
   return (
-    <div className="cart">
-      <h1>Cart</h1>
-      <CartMain layout="page" cart={cart} />
-    </div>
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-white min-h-[calc(100vh-160px)]">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-800 pb-6 mb-8">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-black">
+            Shopping Cart
+          </h1>
+          <p className="text-sm text-neutral-400 mt-1">
+            Review your selected cases before checkout.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Empty Cart Button (Only shown when items exist) */}
+          {/* Empty Cart Button */}
+          {hasItems && (
+            <CartForm
+              route="/cart"
+              action={CartForm.ACTIONS.LinesRemove}
+              inputs={{lineIds}}
+            >
+              {(fetcher) => {
+                const isClearing = fetcher.state !== 'idle';
+                return (
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    disabled={isClearing}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+                  >
+                    {isClearing ? 'Clearing...' : 'Empty Cart'}
+                  </Button>
+                );
+              }}
+            </CartForm>
+          )}
+          <Link to="/products" className="w-fit">
+            <Button
+              variant="secondary"
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
+            >
+              <span>&larr;</span>
+              <span>Continue Shopping</span>
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Cart Items List & Summary */}
+      <CartMain cart={cart} layout="page" />
+    </main>
   );
 }

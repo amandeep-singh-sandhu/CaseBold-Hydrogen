@@ -14,11 +14,11 @@ interface CatalogProduct {
     };
   };
   featuredImage?: {
-    id?: string;
+    id?: string | null;
     url: string;
     altText?: string | null;
-    width?: number;
-    height?: number;
+    width?: number | null;
+    height?: number | null;
   } | null;
 }
 
@@ -54,7 +54,7 @@ export default function ProductsRoute() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <div className="mb-8 border-b border-neutral-800 pb-5">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white">
+        <h1 className="text-3xl font-extrabold tracking-tight text-black">
           All Products
         </h1>
         <p className="mt-2 text-sm text-neutral-400">
