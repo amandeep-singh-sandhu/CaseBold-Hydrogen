@@ -20,7 +20,7 @@ import {useState, useEffect, useMemo} from 'react';
 
 export const meta: Route.MetaFunction = ({loaderData}) => {
   return [
-    {title: `Hydrogen | ${loaderData?.product.title ?? ''}`},
+    {title: `CaseBold | ${loaderData?.product.title ?? ''}`},
     {
       rel: 'canonical',
       href: `/products/${loaderData?.product.handle}`,
@@ -69,10 +69,9 @@ export default function Product() {
   const [resolvedCart, setResolvedCart] = useState<any>(null);
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
 
-  // Safely resolve cart promise across React 18/19
+  // Resolve cart promise safely across React 18/19
   useEffect(() => {
     if (!rootData?.cart) return;
-
     if (typeof (rootData.cart as any).then === 'function') {
       (rootData.cart as Promise<any>).then((cartData) => {
         setResolvedCart(cartData);
@@ -82,63 +81,150 @@ export default function Product() {
     }
   }, [rootData?.cart]);
 
-  // Hydrogen optimistic variant resolution
-  const optimisticVariant = useOptimisticVariant(
+  // Hydrogen optimistic variant handling
+  const selectedVariant = useOptimisticVariant(
     product.selectedOrFirstAvailableVariant,
     getAdjacentAndFirstAvailableVariants(product),
   );
 
-  useSelectedOptionInUrlParam(optimisticVariant.selectedOptions);
+  useSelectedOptionInUrlParam(selectedVariant.selectedOptions);
 
-  // Cross-reference with all fetched variants to ensure quantityAvailable is always present
   const allVariants = useMemo(
     () => product.variants?.nodes ?? [],
     [product.variants],
   );
 
-  // console.log(allVariants);
+  // Inverted catalog: Device string is the Model option
+  const currentModel =
+    selectedVariant?.selectedOptions?.find(
+      (opt: any) =>
+        opt.name.toLowerCase() === 'model' ||
+        opt.name.toLowerCase() === 'device',
+    )?.value || '';
 
-  const selectedVariant = useMemo(() => {
-    const matched = allVariants.find(
-      (v: any) => v.id === optimisticVariant?.id,
+  // Brand categorization helper
+  const getBrandFromModel = (model: string): string => {
+    const m = model.toLowerCase();
+    if (m.includes('iphone') || m.includes('apple')) return 'Apple';
+    if (m.includes('galaxy') || m.includes('samsung')) return 'Samsung';
+    if (m.includes('pixel') || m.includes('google')) return 'Google';
+    return 'Other';
+  };
+
+  // Group models belonging to this specific artwork by their brand
+  const {availableBrands, modelsByBrand} = useMemo(() => {
+    const brandMap: Record<string, string[]> = {};
+    const modelOption = product.options?.find(
+      (o: any) =>
+        o.name.toLowerCase() === 'model' || o.name.toLowerCase() === 'device',
     );
-    return matched || optimisticVariant;
-  }, [allVariants, optimisticVariant]);
+    const models: string[] =
+      modelOption?.optionValues?.map((v: any) => v.name) || [];
 
-  // 1. Stock calculations for CURRENT active variant
+    models.forEach((m) => {
+      const brand = getBrandFromModel(m);
+      if (!brandMap[brand]) brandMap[brand] = [];
+      brandMap[brand].push(m);
+    });
+
+    return {
+      availableBrands: Object.keys(brandMap),
+      modelsByBrand: brandMap,
+    };
+  }, [product.options]);
+
+  // Active Brand calculation based on currently selected model
+  const currentBrand = useMemo(() => {
+    if (!currentModel) return availableBrands[0] || '';
+    const brand = getBrandFromModel(currentModel);
+    return availableBrands.includes(brand) ? brand : availableBrands[0] || '';
+  }, [currentModel, availableBrands]);
+
+  // Models available under current brand
+  const activeBrandModels = useMemo(() => {
+    return modelsByBrand[currentBrand] || [];
+  }, [modelsByBrand, currentBrand]);
+
+  // Related styles from Metafield + current product
+  const relatedStyles = useMemo(() => {
+    const currentStyleItem = {
+      id: product.id,
+      handle: product.handle,
+      title: product.title,
+      image: product.featuredImage,
+      isCurrent: true,
+    };
+
+    const companionItems =
+      product.relatedStyles?.references?.nodes?.map((ref: any) => ({
+        id: ref.id,
+        handle: ref.handle,
+        title: ref.title,
+        image: ref.featuredImage,
+        isCurrent: false,
+      })) || [];
+
+    return [currentStyleItem, ...companionItems];
+  }, [product]);
+
+  // Inventory & Stock Calculations
   const isAvailable = Boolean(selectedVariant?.availableForSale);
   const rawQuantity = selectedVariant?.quantityAvailable;
-
-  // Tracked only if Shopify returned a numeric quantity
   const isQuantityTracked = typeof rawQuantity === 'number';
   const maxAvailable = isQuantityTracked ? rawQuantity : isAvailable ? 99 : 0;
 
-  // 2. Existing quantity of THIS variant in cart
   const currentCartLine = resolvedCart?.lines?.nodes?.find(
     (line: any) => line.merchandise?.id === selectedVariant?.id,
   );
   const currentCartQuantity = currentCartLine?.quantity ?? 0;
 
-  // 3. Remaining quantity available to purchase
   const remainingStock = isQuantityTracked
     ? Math.max(0, maxAvailable - currentCartQuantity)
     : isAvailable
       ? 99
       : 0;
 
-  // Out of stock if availableForSale is false OR remaining stock is 0
   const isOutOfStock =
     !isAvailable || (isQuantityTracked && remainingStock <= 0);
 
-  // Reset selected quantity whenever the active variant changes
   useEffect(() => {
     setErrorMessage(null);
-    if (isOutOfStock) {
-      setSelectedQuantity(0);
-    } else {
-      setSelectedQuantity(1);
-    }
+    setSelectedQuantity(isOutOfStock ? 0 : 1);
   }, [selectedVariant?.id, isOutOfStock]);
+
+  const handleBrandChange = (brand: string) => {
+    const nextModels = modelsByBrand[brand] || [];
+    if (nextModels.length > 0) {
+      const searchParams = new URLSearchParams(location.search);
+      const modelOptionName =
+        product.options?.find(
+          (o: any) =>
+            o.name.toLowerCase() === 'model' ||
+            o.name.toLowerCase() === 'device',
+        )?.name || 'Model';
+
+      searchParams.set(modelOptionName, nextModels[0]);
+      navigate(`?${searchParams.toString()}`, {
+        preventScrollReset: true,
+        replace: true,
+      });
+    }
+  };
+
+  const handleModelChange = (model: string) => {
+    const searchParams = new URLSearchParams(location.search);
+    const modelOptionName =
+      product.options?.find(
+        (o: any) =>
+          o.name.toLowerCase() === 'model' || o.name.toLowerCase() === 'device',
+      )?.name || 'Model';
+
+    searchParams.set(modelOptionName, model);
+    navigate(`?${searchParams.toString()}`, {
+      preventScrollReset: true,
+      replace: true,
+    });
+  };
 
   const handleDecrease = () => {
     setSelectedQuantity((prev) => Math.max(1, prev - 1));
@@ -152,21 +238,6 @@ export default function Product() {
     }
     setSelectedQuantity((prev) => prev + 1);
     setErrorMessage(null);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value, 10);
-    if (isNaN(val) || val < 1) {
-      setSelectedQuantity(1);
-    } else if (val > remainingStock) {
-      setSelectedQuantity(remainingStock);
-      setErrorMessage(
-        `Capped at maximum available quantity (${remainingStock}).`,
-      );
-    } else {
-      setSelectedQuantity(val);
-      setErrorMessage(null);
-    }
   };
 
   const lines =
@@ -191,23 +262,27 @@ export default function Product() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
-        {/* Product Image */}
+        {/* Gallery Image */}
         <div className="aspect-square bg-gray-100 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-center overflow-hidden">
           {selectedVariant?.image?.url ? (
             <img
               src={selectedVariant.image.url}
               alt={selectedVariant.image.altText ?? product.title}
               className="w-full h-full object-cover object-center"
-              sizes=''
+            />
+          ) : product.featuredImage?.url ? (
+            <img
+              src={product.featuredImage.url}
+              alt={product.featuredImage.altText ?? product.title}
+              className="w-full h-full object-cover object-center"
             />
           ) : (
             <span className="text-gray-400 text-sm">No Image</span>
           )}
         </div>
 
-        {/* Product Details */}
+        {/* Product Configurator */}
         <div className="flex flex-col">
-          {/* Dynamic Stock Badge */}
           <div className="flex items-center gap-2 mb-2">
             <span
               className={`text-xs uppercase tracking-wider font-semibold ${
@@ -235,71 +310,103 @@ export default function Product() {
             {selectedVariant?.price.currencyCode}
           </div>
 
-          {/* Model / Variant Buttons */}
-          {product.options && product.options.length > 0 && (
-            <div className="flex flex-col gap-4 mb-6 border-b border-gray-100 pb-6">
-              {product.options
-                .filter((option: any) => option.name !== 'Title')
-                .map((option: any) => {
-                  const currentSelected =
-                    selectedVariant?.selectedOptions?.find(
-                      (sel: any) => sel.name === option.name,
-                    )?.value;
+          {/* Configurator Card */}
+          <div className="flex flex-col gap-6 mb-8 p-5 bg-gray-50 rounded-2xl border border-gray-200">
+            {/* Step 1 & 2: Brand and Device Dropdowns */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                  1. Shop By Device Brand
+                </label>
+                <select
+                  value={currentBrand}
+                  onChange={(e) => handleBrandChange(e.target.value)}
+                  className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black transition-colors"
+                >
+                  {availableBrands.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                  return (
-                    <div key={option.name} className="flex flex-col gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                        {option.name}:{' '}
-                        <span className="text-gray-900 font-bold">
-                          {currentSelected || option.optionValues?.[0]?.name}
-                        </span>
-                      </span>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                  2. Select Model
+                </label>
+                <select
+                  value={currentModel}
+                  onChange={(e) => handleModelChange(e.target.value)}
+                  className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black transition-colors"
+                >
+                  {activeBrandModels.map((m) => {
+                    const matchedVar = allVariants.find((v: any) =>
+                      v.selectedOptions?.some((opt: any) => opt.value === m),
+                    );
+                    const soldOut =
+                      !matchedVar?.availableForSale ||
+                      (typeof matchedVar?.quantityAvailable === 'number' &&
+                        matchedVar.quantityAvailable <= 0);
 
-                      <div className="flex flex-wrap gap-2">
-                        {option.optionValues?.map((val: any) => {
-                          const valName = val.name;
-                          const isSelected = currentSelected === valName;
-
-                          const searchParams = new URLSearchParams(
-                            location.search,
-                          );
-                          searchParams.set(option.name, valName);
-
-                          return (
-                            <Link
-                              key={valName}
-                              to={`?${searchParams.toString()}`}
-                              preventScrollReset
-                              replace
-                              className={`px-4 py-2 text-xs font-bold rounded-lg border transition-all ${
-                                isSelected
-                                  ? 'bg-black text-white border-black shadow-sm'
-                                  : 'bg-white text-gray-800 border-gray-300 hover:border-black'
-                              }`}
-                            >
-                              {valName}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+                    return (
+                      <option key={m} value={m}>
+                        {m} {soldOut ? '(Sold Out)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
             </div>
-          )}
+
+            {/* Step 3: Style Switcher Swatches */}
+            {relatedStyles.length > 1 && (
+              <div className="pt-2 border-t border-gray-200">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                  3. Select Style / Aesthetic
+                </span>
+                <div className="flex flex-wrap gap-2.5">
+                  {relatedStyles.map((styleItem) => {
+                    // Carry over current device selection across styles
+                    const targetParams = new URLSearchParams();
+                    if (currentModel) {
+                      targetParams.set('Model', currentModel);
+                    }
+
+                    return (
+                      <Link
+                        key={styleItem.id}
+                        prefetch="intent"
+                        to={`/products/${styleItem.handle}?${targetParams.toString()}`}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                          styleItem.isCurrent
+                            ? 'border-black bg-black text-white shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-800 hover:border-gray-400'
+                        }`}
+                      >
+                        {styleItem.image?.url && (
+                          <img
+                            src={styleItem.image.url}
+                            alt={styleItem.title}
+                            className="w-5 h-5 rounded-full object-cover border border-gray-300"
+                          />
+                        )}
+                        <span>
+                          {styleItem.title.replace(/Case/gi, '').trim()}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           <p className="text-base text-gray-600 leading-relaxed mb-6">
             {product.description}
           </p>
 
-          <div className="border-t border-b border-gray-100 py-4 mb-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">
-              Highlights
-            </h3>
-            <p className="text-sm text-gray-600">{product.vendor}</p>
-          </div>
-
-          {/* Quantity Controls (Hidden when out of stock) */}
+          {/* Quantity Controls */}
           {!isOutOfStock && (
             <div className="mb-6">
               <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
@@ -319,8 +426,8 @@ export default function Product() {
                   min={1}
                   max={remainingStock}
                   value={selectedQuantity}
-                  onChange={handleInputChange}
-                  className="w-14 h-10 text-center font-bold text-gray-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-sm"
+                  readOnly
+                  className="w-14 h-10 text-center font-bold text-gray-900 focus:outline-none text-sm"
                 />
                 <button
                   type="button"
@@ -334,13 +441,13 @@ export default function Product() {
             </div>
           )}
 
-          {/* Error Message */}
           {errorMessage && (
             <div className="p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-red-600">
               {errorMessage}
             </div>
           )}
 
+          {/* Cart Actions */}
           <div className="flex flex-col sm:flex-row gap-4">
             <CartForm
               route="/cart"
@@ -349,7 +456,6 @@ export default function Product() {
             >
               {(fetcher) => {
                 const isSubmitting = fetcher.state !== 'idle';
-
                 return (
                   <Button
                     type="submit"
@@ -441,23 +547,33 @@ const PRODUCT_FRAGMENT = `#graphql
     handle
     descriptionHtml
     description
-    encodedVariantExistence
-    encodedVariantAvailability
+    featuredImage {
+      id
+      url
+      altText
+      width
+      height
+    }
+    relatedStyles: metafield(namespace: "custom", key: "related_styles") {
+      references(first: 10) {
+        nodes {
+          ... on Product {
+            id
+            title
+            handle
+            featuredImage {
+              id
+              url
+              altText
+            }
+          }
+        }
+      }
+    }
     options {
       name
       optionValues {
         name
-        firstSelectableVariant {
-          ...ProductVariant
-        }
-        swatch {
-          color
-          image {
-            previewImage {
-              url
-            }
-          }
-        }
       }
     }
     selectedOrFirstAvailableVariant(selectedOptions: $selectedOptions, ignoreUnknownOptions: true, caseInsensitiveMatch: true) {
@@ -470,10 +586,6 @@ const PRODUCT_FRAGMENT = `#graphql
       nodes {
         ...ProductVariant
       }
-    }
-    seo {
-      description
-      title
     }
   }
   ${PRODUCT_VARIANT_FRAGMENT}
