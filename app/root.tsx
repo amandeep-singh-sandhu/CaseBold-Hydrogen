@@ -8,7 +8,7 @@ import {
   Meta,
   Scripts,
   ScrollRestoration,
-  useRouteLoaderData,
+  useLoaderData,
 } from 'react-router';
 import type {Route} from './+types/root';
 import favicon from '~/assets/favicon.svg';
@@ -35,23 +35,9 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({
   if (currentUrl.toString() === nextUrl.toString()) return true;
 
   // Defaulting to no revalidation for root loader data to improve performance.
-  // When using this feature, you risk your UI getting out of sync with your server.
-  // Use with caution. If you are uncomfortable with this optimization, update the
-  // line below to `return defaultShouldRevalidate` instead.
-  // For more details see: https://remix.run/docs/en/main/route/should-revalidate
   return false;
 };
 
-/**
- * The main and reset stylesheets are added in the Layout component
- * to prevent a bug in development HMR updates.
- *
- * This avoids the "failed to execute 'insertBefore' on 'Node'" error
- * that occurs after editing and navigating to another page.
- *
- * It's a temporary fix until the issue is resolved.
- * https://github.com/remix-run/remix/issues/9242
- */
 export function links() {
   return [
     {
@@ -84,10 +70,10 @@ export async function loader(args: Route.LoaderArgs) {
       publicStorefrontId: env.PUBLIC_STOREFRONT_ID,
     }),
     consent: {
-      checkoutDomain: env.PUBLIC_CHECKOUT_DOMAIN,
+      // Fall back to PUBLIC_STORE_DOMAIN if PUBLIC_CHECKOUT_DOMAIN is undefined
+      checkoutDomain: env.PUBLIC_CHECKOUT_DOMAIN || env.PUBLIC_STORE_DOMAIN,
       storefrontAccessToken: env.PUBLIC_STOREFRONT_API_TOKEN,
       withPrivacyBanner: false,
-      // localize the privacy banner
       country: args.context.storefront.i18n.country,
       language: args.context.storefront.i18n.language,
     },
@@ -95,8 +81,7 @@ export async function loader(args: Route.LoaderArgs) {
 }
 
 /**
- * Load data necessary for rendering content above the fold. This is the critical data
- * needed to render the page. If it's unavailable, the whole page should 400 or 500 error.
+ * Load data necessary for rendering content above the fold.
  */
 async function loadCriticalData({context}: Route.LoaderArgs) {
   const {storefront} = context;
@@ -105,36 +90,32 @@ async function loadCriticalData({context}: Route.LoaderArgs) {
     storefront.query(HEADER_QUERY, {
       cache: storefront.CacheLong(),
       variables: {
-        headerMenuHandle: 'main-menu', // Adjust to your header menu handle
+        headerMenuHandle: 'main-menu',
       },
     }),
-    // Add other queries here, so that they are loaded in parallel
   ]);
 
   return {header};
 }
 
 /**
- * Load data for rendering content below the fold. This data is deferred and will be
- * fetched after the initial page load. If it's unavailable, the page should still 200.
- * Make sure to not throw any errors here, as it will cause the page to 500.
+ * Load data for rendering content below the fold.
  */
 function loadDeferredData({context}: Route.LoaderArgs) {
   const {storefront, customerAccount, cart} = context;
 
-  // defer the footer query (below the fold)
   const footer = storefront
     .query(FOOTER_QUERY, {
       cache: storefront.CacheLong(),
       variables: {
-        footerMenuHandle: 'footer', // Adjust to your footer menu handle
+        footerMenuHandle: 'footer',
       },
     })
     .catch((error: Error) => {
-      // Log query errors, but don't throw them so the page can still render
       console.error(error);
       return null;
     });
+
   return {
     cart: cart.get(),
     isLoggedIn: customerAccount.isLoggedIn(),
@@ -146,17 +127,18 @@ export function Layout({children}: {children?: React.ReactNode}) {
   const nonce = useNonce();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <link rel="stylesheet" href={tailwindCss}></link>
-        <link rel="stylesheet" href={resetStyles}></link>
-        <link rel="stylesheet" href={appStyles}></link>
+        <link rel="stylesheet" href={tailwindCss} />
+        <link rel="stylesheet" href={resetStyles} />
+        <link rel="stylesheet" href={appStyles} />
         <Meta />
         <Links />
       </head>
-      <body>
+      {/* Add suppressHydrationWarning here */}
+      <body suppressHydrationWarning>
         {children}
         <ScrollRestoration nonce={nonce} />
         <Scripts nonce={nonce} />
@@ -166,11 +148,7 @@ export function Layout({children}: {children?: React.ReactNode}) {
 }
 
 export default function App() {
-  const data = useRouteLoaderData<RootLoader>('root');
-
-  if (!data) {
-    return <Outlet />;
-  }
+  const data = useLoaderData<typeof loader>();
 
   return (
     <Analytics.Provider
@@ -198,12 +176,14 @@ export function ErrorBoundary() {
   }
 
   return (
-    <div className="route-error">
-      <h1>Oops</h1>
-      <h2>{errorStatus}</h2>
+    <div className="route-error p-8 text-white bg-neutral-950 min-h-screen">
+      <h1 className="text-3xl font-bold mb-2">Oops</h1>
+      <h2 className="text-xl text-neutral-400 mb-4">{errorStatus}</h2>
       {errorMessage && (
-        <fieldset>
-          <pre>{errorMessage}</pre>
+        <fieldset className="border border-neutral-800 rounded-lg p-4 bg-neutral-900/50">
+          <pre className="text-sm text-red-400 overflow-x-auto">
+            {errorMessage}
+          </pre>
         </fieldset>
       )}
     </div>
