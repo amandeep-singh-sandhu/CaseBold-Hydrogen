@@ -3,7 +3,6 @@ import {
   useNavigate,
   useLoaderData,
   useRouteLoaderData,
-  useLocation,
 } from 'react-router';
 import type {Route} from './+types/products.$handle';
 import {
@@ -12,9 +11,13 @@ import {
   getAdjacentAndFirstAvailableVariants,
   useSelectedOptionInUrlParam,
   CartForm,
+  Money,
 } from '@shopify/hydrogen';
 import {redirectIfHandleIsLocalized} from '~/lib/redirect';
 import {Button} from '~/components/Button';
+import {ProductGallery} from '~/components/product/ProductGallery';
+import {DeviceStyleSelector} from '~/components/product/DeviceStyleSelector';
+import {QuantityStepper} from '~/components/product/QuantityStepper';
 import type {RootLoader} from '~/root';
 import {useState, useEffect, useMemo} from 'react';
 
@@ -26,6 +29,13 @@ export const meta: Route.MetaFunction = ({loaderData}) => {
       href: `/products/${loaderData?.product.handle}`,
     },
   ];
+};
+
+// Edge cache: 1 minute stale-while-revalidate for snappy back/forward navigation
+export const headers: Route.HeadersFunction = () => {
+  return {
+    'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
+  };
 };
 
 export async function loader(args: Route.LoaderArgs) {
@@ -63,19 +73,16 @@ export default function Product() {
   const {product} = useLoaderData<typeof loader>();
   const rootData = useRouteLoaderData<RootLoader>('root');
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resolvedCart, setResolvedCart] = useState<any>(null);
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
 
-  // Resolve cart promise safely across React 18/19
+  // Non-blocking cart retrieval
   useEffect(() => {
     if (!rootData?.cart) return;
     if (typeof (rootData.cart as any).then === 'function') {
-      (rootData.cart as Promise<any>).then((cartData) => {
-        setResolvedCart(cartData);
-      });
+      (rootData.cart as Promise<any>).then(setResolvedCart);
     } else {
       setResolvedCart(rootData.cart);
     }
@@ -94,7 +101,6 @@ export default function Product() {
     [product.variants],
   );
 
-  // Inverted catalog: Device string is the Model option
   const currentModel =
     selectedVariant?.selectedOptions?.find(
       (opt: any) =>
@@ -102,52 +108,9 @@ export default function Product() {
         opt.name.toLowerCase() === 'device',
     )?.value || '';
 
-  // Brand categorization helper
-  const getBrandFromModel = (model: string): string => {
-    const m = model.toLowerCase();
-    if (m.includes('iphone') || m.includes('apple')) return 'Apple';
-    if (m.includes('galaxy') || m.includes('samsung')) return 'Samsung';
-    if (m.includes('pixel') || m.includes('google')) return 'Google';
-    return 'Other';
-  };
-
-  // Group models belonging to this specific artwork by their brand
-  const {availableBrands, modelsByBrand} = useMemo(() => {
-    const brandMap: Record<string, string[]> = {};
-    const modelOption = product.options?.find(
-      (o: any) =>
-        o.name.toLowerCase() === 'model' || o.name.toLowerCase() === 'device',
-    );
-    const models: string[] =
-      modelOption?.optionValues?.map((v: any) => v.name) || [];
-
-    models.forEach((m) => {
-      const brand = getBrandFromModel(m);
-      if (!brandMap[brand]) brandMap[brand] = [];
-      brandMap[brand].push(m);
-    });
-
-    return {
-      availableBrands: Object.keys(brandMap),
-      modelsByBrand: brandMap,
-    };
-  }, [product.options]);
-
-  // Active Brand calculation based on currently selected model
-  const currentBrand = useMemo(() => {
-    if (!currentModel) return availableBrands[0] || '';
-    const brand = getBrandFromModel(currentModel);
-    return availableBrands.includes(brand) ? brand : availableBrands[0] || '';
-  }, [currentModel, availableBrands]);
-
-  // Models available under current brand
-  const activeBrandModels = useMemo(() => {
-    return modelsByBrand[currentBrand] || [];
-  }, [modelsByBrand, currentBrand]);
-
-  // Related styles from Metafield + current product
+  // Companion style items
   const relatedStyles = useMemo(() => {
-    const currentStyleItem = {
+    const current = {
       id: product.id,
       handle: product.handle,
       title: product.title,
@@ -155,7 +118,7 @@ export default function Product() {
       isCurrent: true,
     };
 
-    const companionItems =
+    const companions =
       product.relatedStyles?.references?.nodes?.map((ref: any) => ({
         id: ref.id,
         handle: ref.handle,
@@ -164,10 +127,10 @@ export default function Product() {
         isCurrent: false,
       })) || [];
 
-    return [currentStyleItem, ...companionItems];
+    return [current, ...companions];
   }, [product]);
 
-  // Inventory & Stock Calculations
+  // Stock calculations
   const isAvailable = Boolean(selectedVariant?.availableForSale);
   const rawQuantity = selectedVariant?.quantityAvailable;
   const isQuantityTracked = typeof rawQuantity === 'number';
@@ -191,40 +154,6 @@ export default function Product() {
     setErrorMessage(null);
     setSelectedQuantity(isOutOfStock ? 0 : 1);
   }, [selectedVariant?.id, isOutOfStock]);
-
-  const handleBrandChange = (brand: string) => {
-    const nextModels = modelsByBrand[brand] || [];
-    if (nextModels.length > 0) {
-      const searchParams = new URLSearchParams(location.search);
-      const modelOptionName =
-        product.options?.find(
-          (o: any) =>
-            o.name.toLowerCase() === 'model' ||
-            o.name.toLowerCase() === 'device',
-        )?.name || 'Model';
-
-      searchParams.set(modelOptionName, nextModels[0]);
-      navigate(`?${searchParams.toString()}`, {
-        preventScrollReset: true,
-        replace: true,
-      });
-    }
-  };
-
-  const handleModelChange = (model: string) => {
-    const searchParams = new URLSearchParams(location.search);
-    const modelOptionName =
-      product.options?.find(
-        (o: any) =>
-          o.name.toLowerCase() === 'model' || o.name.toLowerCase() === 'device',
-      )?.name || 'Model';
-
-    searchParams.set(modelOptionName, model);
-    navigate(`?${searchParams.toString()}`, {
-      preventScrollReset: true,
-      replace: true,
-    });
-  };
 
   const handleDecrease = () => {
     setSelectedQuantity((prev) => Math.max(1, prev - 1));
@@ -251,46 +180,35 @@ export default function Product() {
       : [];
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-white">
       <div className="mb-6">
         <Link
           to="/products"
-          className="text-sm font-medium text-gray-500 hover:text-black inline-flex items-center gap-1 transition-colors"
+          prefetch="intent"
+          className="text-sm font-medium text-neutral-400 hover:text-black inline-flex items-center gap-1 transition-colors"
         >
           &larr; Back to all products
         </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
-        {/* Gallery Image */}
-        <div className="aspect-square bg-gray-100 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-center overflow-hidden">
-          {selectedVariant?.image?.url ? (
-            <img
-              src={selectedVariant.image.url}
-              alt={selectedVariant.image.altText ?? product.title}
-              className="w-full h-full object-cover object-center"
-            />
-          ) : product.featuredImage?.url ? (
-            <img
-              src={product.featuredImage.url}
-              alt={product.featuredImage.altText ?? product.title}
-              className="w-full h-full object-cover object-center"
-            />
-          ) : (
-            <span className="text-gray-400 text-sm">No Image</span>
-          )}
-        </div>
+        {/* Gallery Subcomponent */}
+        <ProductGallery
+          image={selectedVariant?.image}
+          fallbackImage={product.featuredImage}
+          title={product.title}
+        />
 
-        {/* Product Configurator */}
+        {/* Product Details & Configurator */}
         <div className="flex flex-col">
           <div className="flex items-center gap-2 mb-2">
             <span
               className={`text-xs uppercase tracking-wider font-semibold ${
                 isOutOfStock
-                  ? 'text-red-500'
+                  ? 'text-red-400'
                   : isQuantityTracked && remainingStock <= 5
-                    ? 'text-amber-500'
-                    : 'text-emerald-500'
+                    ? 'text-amber-400'
+                    : 'text-emerald-400'
               }`}
             >
               {isOutOfStock
@@ -301,153 +219,43 @@ export default function Product() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-3">
+          <h1 className="text-3xl font-extrabold text-black tracking-tight mb-3">
             {product.title}
           </h1>
 
-          <div className="text-2xl font-bold text-gray-900 mb-6">
-            {selectedVariant?.price.amount}{' '}
-            {selectedVariant?.price.currencyCode}
+          <div className="text-2xl font-bold text-black mb-6">
+            <Money data={selectedVariant?.price} />
           </div>
 
-          {/* Configurator Card */}
-          <div className="flex flex-col gap-6 mb-8 p-5 bg-gray-50 rounded-2xl border border-gray-200">
-            {/* Step 1 & 2: Brand and Device Dropdowns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                  1. Shop By Device Brand
-                </label>
-                <select
-                  value={currentBrand}
-                  onChange={(e) => handleBrandChange(e.target.value)}
-                  className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black transition-colors"
-                >
-                  {availableBrands.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Configurator Subcomponent */}
+          <DeviceStyleSelector
+            product={product}
+            currentModel={currentModel}
+            allVariants={allVariants}
+            relatedStyles={relatedStyles}
+          />
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                  2. Select Model
-                </label>
-                <select
-                  value={currentModel}
-                  onChange={(e) => handleModelChange(e.target.value)}
-                  className="w-full bg-white border border-gray-300 text-gray-900 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-black transition-colors"
-                >
-                  {activeBrandModels.map((m) => {
-                    const matchedVar = allVariants.find((v: any) =>
-                      v.selectedOptions?.some((opt: any) => opt.value === m),
-                    );
-                    const soldOut =
-                      !matchedVar?.availableForSale ||
-                      (typeof matchedVar?.quantityAvailable === 'number' &&
-                        matchedVar.quantityAvailable <= 0);
-
-                    return (
-                      <option key={m} value={m}>
-                        {m} {soldOut ? '(Sold Out)' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
-
-            {/* Step 3: Style Switcher Swatches */}
-            {relatedStyles.length > 1 && (
-              <div className="pt-2 border-t border-gray-200">
-                <span className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
-                  3. Select Style / Aesthetic
-                </span>
-                <div className="flex flex-wrap gap-2.5">
-                  {relatedStyles.map((styleItem) => {
-                    // Carry over current device selection across styles
-                    const targetParams = new URLSearchParams();
-                    if (currentModel) {
-                      targetParams.set('Model', currentModel);
-                    }
-
-                    return (
-                      <Link
-                        key={styleItem.id}
-                        prefetch="intent"
-                        to={`/products/${styleItem.handle}?${targetParams.toString()}`}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
-                          styleItem.isCurrent
-                            ? 'border-black bg-black text-white shadow-sm'
-                            : 'border-gray-200 bg-white text-gray-800 hover:border-gray-400'
-                        }`}
-                      >
-                        {styleItem.image?.url && (
-                          <img
-                            src={styleItem.image.url}
-                            alt={styleItem.title}
-                            className="w-5 h-5 rounded-full object-cover border border-gray-300"
-                          />
-                        )}
-                        <span>
-                          {styleItem.title.replace(/Case/gi, '').trim()}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <p className="text-base text-gray-600 leading-relaxed mb-6">
+          <p className="text-base text-neutral-400 leading-relaxed mb-6">
             {product.description}
           </p>
 
           {/* Quantity Controls */}
           {!isOutOfStock && (
-            <div className="mb-6">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                Quantity (Max: {remainingStock})
-              </label>
-              <div className="flex items-center border border-gray-300 rounded-lg w-fit bg-white overflow-hidden shadow-sm">
-                <button
-                  type="button"
-                  onClick={handleDecrease}
-                  disabled={selectedQuantity <= 1}
-                  className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-base font-bold"
-                >
-                  &#8722;
-                </button>
-                <input
-                  type="number"
-                  min={1}
-                  max={remainingStock}
-                  value={selectedQuantity}
-                  readOnly
-                  className="w-14 h-10 text-center font-bold text-gray-900 focus:outline-none text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleIncrease}
-                  disabled={selectedQuantity >= remainingStock}
-                  className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-base font-bold"
-                >
-                  &#43;
-                </button>
-              </div>
-            </div>
+            <QuantityStepper
+              quantity={selectedQuantity}
+              max={remainingStock}
+              onDecrease={handleDecrease}
+              onIncrease={handleIncrease}
+            />
           )}
 
           {errorMessage && (
-            <div className="p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-red-600">
+            <div className="p-3 mb-4 rounded-lg bg-red-950/60 border border-red-800 text-xs font-medium text-red-300">
               {errorMessage}
             </div>
           )}
 
-          {/* Cart Actions */}
+          {/* Add to Cart Actions */}
           <div className="flex flex-col sm:flex-row gap-4">
             <CartForm
               route="/cart"
@@ -474,7 +282,7 @@ export default function Product() {
                       setErrorMessage(null);
                       setTimeout(() => navigate('/cart'), 300);
                     }}
-                    className="w-full sm:w-auto py-3 px-8 text-base shadow-sm hover:shadow active:scale-[0.99] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto py-3 px-8 text-base bg-black font-bold shadow-sm hover:bg-gray-400 active:scale-[0.99] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmitting
                       ? 'Adding...'
@@ -486,10 +294,10 @@ export default function Product() {
               }}
             </CartForm>
 
-            <Link to="/cart" className="w-full sm:w-auto">
+            <Link to="/cart" prefetch="intent" className="w-full sm:w-auto">
               <Button
                 variant="secondary"
-                className="w-full py-3 px-8 text-base"
+                className="w-full py-3 px-8 text-base border-neutral-700 hover:bg-neutral-800 hover:text-white text-black"
               >
                 Go to Cart
               </Button>
@@ -522,20 +330,12 @@ const PRODUCT_VARIANT_FRAGMENT = `#graphql
       amount
       currencyCode
     }
-    product {
-      title
-      handle
-    }
     selectedOptions {
       name
       value
     }
     sku
     title
-    unitPrice {
-      amount
-      currencyCode
-    }
   }
 ` as const;
 
@@ -565,6 +365,8 @@ const PRODUCT_FRAGMENT = `#graphql
               id
               url
               altText
+              width
+              height
             }
           }
         }
