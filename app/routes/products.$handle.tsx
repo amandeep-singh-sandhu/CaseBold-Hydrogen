@@ -384,7 +384,7 @@ const PRODUCT_FRAGMENT = `#graphql
     adjacentVariants(selectedOptions: $selectedOptions) {
       ...ProductVariant
     }
-    variants(first: 50) {
+    variants(first: 100) {
       nodes {
         ...ProductVariant
       }
