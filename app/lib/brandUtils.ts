@@ -1,55 +1,26 @@
-/**
- * Strict display order for the Brand dropdown
- */
-export const ORDERED_BRANDS = [
-  'Apple',
-  'Samsung',
-  'Vivo',
-  'Xiaomi',
-  'Oppo',
-] as const;
-
-export type SupportedBrand = (typeof ORDERED_BRANDS)[number] | 'Other';
-
-/**
- * Matching patterns for device brands.
- * Uses exact brand prefixes and common sub-brand keywords.
- */
-const BRAND_PATTERNS: Array<{
-  brand: (typeof ORDERED_BRANDS)[number];
+export interface DynamicBrandRule {
+  brand: string;
   matches: string[];
-}> = [
-  {
-    brand: 'Apple',
-    matches: ['iphone', 'apple'],
-  },
-  {
-    brand: 'Samsung',
-    matches: ['galaxy', 'samsung', 'z fold', 'z flip'],
-  },
-  {
-    brand: 'Vivo',
-    matches: ['vivo'],
-  },
-  {
-    brand: 'Xiaomi',
-    matches: ['xiaomi', 'redmi', 'poco', 'mi '],
-  },
-  {
-    brand: 'Oppo',
-    matches: ['oppo', 'find n', 'find x', 'reno'],
-  },
-];
+  priority: number;
+}
 
 /**
- * Derives the brand name from a device model option value string.
+ * Derives the brand name from a device model string using dynamic rules.
+ * If no rules match or rules array is empty, falls back safely to 'Other'.
  */
-export function getBrandFromModel(model: string): SupportedBrand {
+export function getBrandFromModel(
+  model: string,
+  rules: DynamicBrandRule[] = [],
+): string {
   if (!model) return 'Other';
   const normalized = model.toLowerCase();
 
-  for (const entry of BRAND_PATTERNS) {
-    if (entry.matches.some((keyword) => normalized.includes(keyword))) {
+  for (const entry of rules) {
+    if (
+      entry.matches.some((keyword) =>
+        normalized.includes(keyword.toLowerCase().trim()),
+      )
+    ) {
       return entry.brand;
     }
   }
@@ -59,16 +30,23 @@ export function getBrandFromModel(model: string): SupportedBrand {
 
 /**
  * Groups an array of model strings into their matching brands
- * and sorts the brands according to ORDERED_BRANDS.
+ * based on dynamic metaobject rules from Shopify Admin.
+ *
+ * - Deduplicates model names.
+ * - Sorts available brands strictly by the priority set by the client in Shopify Admin.
+ * - Leaves unknown devices categorized under 'Other' at the end.
  */
-export function groupModelsByBrand(models: string[]): {
+export function groupModelsByBrand(
+  models: string[],
+  rules: DynamicBrandRule[] = [],
+): {
   availableBrands: string[];
   modelsByBrand: Record<string, string[]>;
 } {
   const brandMap: Record<string, string[]> = {};
 
   for (const model of models) {
-    const brand = getBrandFromModel(model);
+    const brand = getBrandFromModel(model, rules);
     if (!brandMap[brand]) {
       brandMap[brand] = [];
     }
@@ -78,13 +56,19 @@ export function groupModelsByBrand(models: string[]): {
     }
   }
 
-  // Sort available brands matching the canonical brand order
+  // Ordered list of brand names according to display priority
+  const orderedBrandNames = rules.map((r) => r.brand);
+
   const availableBrands = Object.keys(brandMap).sort((a, b) => {
-    const indexA = ORDERED_BRANDS.indexOf(a as any);
-    const indexB = ORDERED_BRANDS.indexOf(b as any);
+    const indexA = orderedBrandNames.indexOf(a);
+    const indexB = orderedBrandNames.indexOf(b);
+
+    // If both are custom/unmatched brands, alphabetize them
     if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+    // Unmatched brands go to the end
     if (indexA === -1) return 1;
     if (indexB === -1) return -1;
+
     return indexA - indexB;
   });
 
