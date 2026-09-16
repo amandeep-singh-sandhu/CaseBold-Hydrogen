@@ -9,16 +9,22 @@ import {
   Scripts,
   ScrollRestoration,
   useLoaderData,
+  type LoaderFunctionArgs,
 } from 'react-router';
-import type {Route} from './+types/root';
 import favicon from '~/assets/favicon.svg';
-import {FOOTER_QUERY, HEADER_QUERY} from '~/lib/fragments';
+import {FOOTER_QUERY, HEADER_QUERY, BRAND_RULES_QUERY} from '~/lib/fragments';
 import resetStyles from '~/styles/reset.css?url';
 import appStyles from '~/styles/app.css?url';
 import tailwindCss from './styles/tailwind.css?url';
 import {PageLayout} from './components/PageLayout';
 
 export type RootLoader = typeof loader;
+
+export interface DynamicBrandRule {
+  brand: string;
+  matches: string[];
+  priority: number;
+}
 
 /**
  * This is important to avoid re-fetching root queries on sub-navigations
@@ -52,11 +58,11 @@ export function links() {
   ];
 }
 
-export async function loader(args: Route.LoaderArgs) {
+export async function loader(args: LoaderFunctionArgs) {
   // Start fetching non-critical data without blocking time to first byte
   const deferredData = loadDeferredData(args);
 
-  // Await the critical data required to render initial state of the page
+  // Await critical data (Header + Dynamic Brand Metaobjects)
   const criticalData = await loadCriticalData(args);
 
   const {storefront, env} = args.context;
@@ -70,7 +76,6 @@ export async function loader(args: Route.LoaderArgs) {
       publicStorefrontId: env.PUBLIC_STOREFRONT_ID,
     }),
     consent: {
-      // Fall back to PUBLIC_STORE_DOMAIN if PUBLIC_CHECKOUT_DOMAIN is undefined
       checkoutDomain: env.PUBLIC_CHECKOUT_DOMAIN || env.PUBLIC_STORE_DOMAIN,
       storefrontAccessToken: env.PUBLIC_STOREFRONT_API_TOKEN,
       withPrivacyBanner: false,
@@ -83,25 +88,63 @@ export async function loader(args: Route.LoaderArgs) {
 /**
  * Load data necessary for rendering content above the fold.
  */
-async function loadCriticalData({context}: Route.LoaderArgs) {
+async function loadCriticalData({context}: LoaderFunctionArgs) {
   const {storefront} = context;
 
-  const [header] = await Promise.all([
+  const [header, brandRulesData] = await Promise.all([
     storefront.query(HEADER_QUERY, {
       cache: storefront.CacheLong(),
       variables: {
         headerMenuHandle: 'main-menu',
       },
     }),
+    storefront.query(BRAND_RULES_QUERY, {
+      cache: storefront.CacheLong(),
+      variables: {
+        first: 25,
+      },
+    }),
   ]);
 
-  return {header};
+  // Safely parse Metaobjects created by the client
+  const rawNodes = (brandRulesData?.metaobjects?.nodes ?? []) as Array<{
+    brandName?: {value?: string} | null;
+    matches?: {value?: string} | null;
+    priority?: {value?: string} | null;
+  }>;
+
+  const brandRules: DynamicBrandRule[] = rawNodes
+    .map((node) => {
+      let parsedMatches: string[] = [];
+      if (node.matches?.value) {
+        try {
+          const parsed = JSON.parse(node.matches.value);
+          if (Array.isArray(parsed)) {
+            parsedMatches = parsed as string[];
+          }
+        } catch {
+          parsedMatches = [];
+        }
+      }
+
+      return {
+        brand: node.brandName?.value || '',
+        matches: parsedMatches,
+        priority: parseInt(node.priority?.value || '99', 10),
+      };
+    })
+    .filter((rule): rule is DynamicBrandRule => Boolean(rule.brand))
+    .sort(
+      (a: DynamicBrandRule, b: DynamicBrandRule) => a.priority - b.priority,
+    );
+
+  return {header, brandRules};
 }
 
 /**
  * Load data for rendering content below the fold.
  */
-function loadDeferredData({context}: Route.LoaderArgs) {
+function loadDeferredData({context}: LoaderFunctionArgs) {
   const {storefront, customerAccount, cart} = context;
 
   const footer = storefront
@@ -137,7 +180,6 @@ export function Layout({children}: {children?: React.ReactNode}) {
         <Meta />
         <Links />
       </head>
-      {/* Add suppressHydrationWarning here */}
       <body suppressHydrationWarning>
         {children}
         <ScrollRestoration nonce={nonce} />

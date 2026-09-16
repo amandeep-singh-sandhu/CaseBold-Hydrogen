@@ -1,13 +1,18 @@
 import {useState} from 'react';
 import {Link} from 'react-router';
 import {SearchDrawer} from './SearchDrawer';
+import type {DynamicBrandRule} from '~/root';
 
-export function Header() {
+interface HeaderProps {
+  brandRules?: DynamicBrandRule[];
+}
+
+export function Header({brandRules = []}: HeaderProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   return (
     <div className="sticky top-0 z-40 w-full">
-      <header className="border-b border-neutral-800 bg-black backdrop-blur-md px-6 py-4 flex items-center justify-between text-white">
+      <header className="border-b border-neutral-800 bg-neutral-950 backdrop-blur-md px-6 py-4 flex items-center justify-between text-white">
         {/* Brand Logo */}
         <Link to="/" className="flex items-center">
           <span className="text-xl font-black tracking-tight text-white">
@@ -33,13 +38,21 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-4">
+            {/* Cart Link */}
+            <Link
+              to="/cart"
+              className="text-neutral-400 hover:text-white transition-colors text-sm font-medium"
+            >
+              Cart
+            </Link>
             {/* Search Icon Trigger */}
             <button
               type="button"
               aria-label="Toggle Search"
               onClick={() => setIsSearchOpen((prev) => !prev)}
-              className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-900 rounded-lg transition-colors"
+              className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-900 text-sm font-medium rounded-lg transition-colors flex gap-1 items-center"
             >
+              <span>Search</span>
               {isSearchOpen ? (
                 <svg
                   className="w-5 h-5"
@@ -70,14 +83,6 @@ export function Header() {
                 </svg>
               )}
             </button>
-
-            {/* Cart Link */}
-            <Link
-              to="/cart"
-              className="text-neutral-400 hover:text-white transition-colors text-sm font-medium"
-            >
-              Cart
-            </Link>
           </div>
         </div>
       </header>
@@ -86,6 +91,7 @@ export function Header() {
       <SearchDrawer
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+        brandRules={brandRules}
       />
     </div>
   );

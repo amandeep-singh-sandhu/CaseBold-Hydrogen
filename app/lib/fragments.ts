@@ -1,4 +1,4 @@
-// NOTE: https://shopify.dev/docs/api/storefront/latest/queries/cart
+// Cart Query Fragments
 export const CART_QUERY_FRAGMENT = `#graphql
   fragment Money on MoneyV2 {
     currencyCode
@@ -179,6 +179,7 @@ export const CART_QUERY_FRAGMENT = `#graphql
   }
 ` as const;
 
+// Menu Fragments
 const MENU_FRAGMENT = `#graphql
   fragment MenuItem on MenuItem {
     id
@@ -205,6 +206,7 @@ const MENU_FRAGMENT = `#graphql
   }
 ` as const;
 
+// Header & Footer Queries
 export const HEADER_QUERY = `#graphql
   fragment Shop on Shop {
     id
@@ -247,4 +249,32 @@ export const FOOTER_QUERY = `#graphql
     }
   }
   ${MENU_FRAGMENT}
+` as const;
+
+// Dynamic Metaobject Brand Rules
+export const BRAND_RULES_FRAGMENT = `#graphql
+  fragment DeviceBrandRule on Metaobject {
+    id
+    handle
+    brandName: field(key: "brand_name") {
+      value
+    }
+    matches: field(key: "matches") {
+      value
+    }
+    priority: field(key: "display_priority") {
+      value
+    }
+  }
+` as const;
+
+export const BRAND_RULES_QUERY = `#graphql
+  query DeviceBrandRules($first: Int = 25) {
+    metaobjects(type: "device_brand_rule", first: $first) {
+      nodes {
+        ...DeviceBrandRule
+      }
+    }
+  }
+  ${BRAND_RULES_FRAGMENT}
 ` as const;
