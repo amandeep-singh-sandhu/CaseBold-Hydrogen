@@ -325,57 +325,83 @@ export default function Product() {
   // Auto-select brand/model if navigated from search with ?brand=...
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const brandParam = searchParams.get('brand')?.toLowerCase().trim();
+    const rawSearchParam =
+      searchParams.get('search') ||
+      searchParams.get('brand') ||
+      searchParams.get('model');
 
-    if (brandParam && availableBrands.length > 0) {
-      // 1. Check if the parameter directly matches one of our available brands
-      const matchedBrand = availableBrands.find(
-        (b) =>
-          b.toLowerCase() === brandParam ||
-          brandParam.includes(b.toLowerCase()),
+    if (!rawSearchParam || availableBrands.length === 0) return;
+
+    const term = rawSearchParam.toLowerCase().trim();
+
+    // Find the exact option name used in Shopify ('Model' or 'Device')
+    const modelOptionName =
+      product.options?.find(
+        (o: any) =>
+          o.name.toLowerCase() === 'model' || o.name.toLowerCase() === 'device',
+      )?.name || 'Model';
+
+    // 1. Direct Model Check: Check if the search term matches any available model directly
+    let targetModel: string | undefined;
+    let targetBrand: string | undefined;
+
+    for (const brand of availableBrands) {
+      const models = modelsByBrand[brand] || [];
+      const matched = models.find((m) => {
+        const lowerM = m.toLowerCase();
+        return (
+          lowerM === term || lowerM.includes(term) || term.includes(lowerM)
+        );
+      });
+
+      if (matched) {
+        targetModel = matched;
+        targetBrand = brand;
+        break;
+      }
+    }
+
+    // 2. Brand Fallback: If no specific model matched, check if it was a brand name
+    if (!targetModel) {
+      targetBrand = availableBrands.find(
+        (b) => b.toLowerCase() === term || term.includes(b.toLowerCase()),
       );
 
-      // 2. Or check if the parameter matches any model keyword (e.g., "s24" or "galaxy")
-      const brandFromRule =
-        matchedBrand || getBrandFromModel(brandParam, brandRules);
-
-      const targetBrand =
-        brandFromRule !== 'Other' && availableBrands.includes(brandFromRule)
-          ? brandFromRule
-          : matchedBrand;
-
-      if (targetBrand && targetBrand !== currentBrand) {
-        const brandModels = modelsByBrand[targetBrand] || [];
-        if (brandModels.length > 0) {
-          const modelOptionName =
-            product.options?.find(
-              (o: any) =>
-                o.name.toLowerCase() === 'model' ||
-                o.name.toLowerCase() === 'device',
-            )?.name || 'Model';
-
-          // Select the first model of this searched brand and clean up the URL
-          const nextParams = new URLSearchParams(location.search);
-          nextParams.delete('brand');
-          nextParams.set(modelOptionName, brandModels[0]);
-
-          navigate(`?${nextParams.toString()}`, {
-            preventScrollReset: true,
-            replace: true,
-          });
+      if (!targetBrand) {
+        const derived = getBrandFromModel(term, brandRules);
+        if (derived !== 'Other' && availableBrands.includes(derived)) {
+          targetBrand = derived;
         }
       }
+
+      if (targetBrand) {
+        const brandModels = modelsByBrand[targetBrand] || [];
+        targetModel = brandModels[0];
+      }
+    }
+
+    // 3. Apply the selection to URL if found and different from current selection
+    if (targetModel && targetModel !== currentModel) {
+      const nextParams = new URLSearchParams(location.search);
+      nextParams.delete('search');
+      nextParams.delete('brand');
+      nextParams.delete('model');
+      nextParams.set(modelOptionName, targetModel);
+
+      navigate(`?${nextParams.toString()}`, {
+        preventScrollReset: true,
+        replace: true,
+      });
     }
   }, [
     location.search,
     availableBrands,
     modelsByBrand,
     brandRules,
-    currentBrand,
+    currentModel,
     navigate,
     product.options,
   ]);
-
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-white">
       <div className="mb-6">

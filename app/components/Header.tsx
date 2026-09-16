@@ -14,7 +14,7 @@ export function Header({brandRules = []}: HeaderProps) {
     <div className="sticky top-0 z-40 w-full">
       <header className="border-b border-neutral-800 bg-neutral-950 backdrop-blur-md px-6 py-4 flex items-center justify-between text-white">
         {/* Brand Logo */}
-        <Link to="/" className="flex items-center">
+        <Link to="/" className="flex items-center no-underline!">
           <span className="text-xl font-black tracking-tight text-white">
             CASEBOLD
           </span>

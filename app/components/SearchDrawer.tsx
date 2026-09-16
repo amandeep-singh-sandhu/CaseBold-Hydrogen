@@ -28,12 +28,7 @@ export function SearchDrawer({
   });
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  {
-    /* Derive the target brand or query to forward */
-  }
-  const targetQuery = searchTerm
-    ? `?brand=${encodeURIComponent(searchTerm)}`
-    : '';
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   // Auto-focus input when activated
   useEffect(() => {
@@ -44,6 +39,44 @@ export function SearchDrawer({
       setResults({products: [], queries: []});
     }
   }, [isOpen]);
+
+  // Close when scrolling down or clicking outside
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // 1. Click outside handler
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      // If click originated outside the drawer container and toggle button
+      const target = event.target as HTMLElement;
+      if (
+        drawerRef.current &&
+        !drawerRef.current.contains(target) &&
+        !target.closest('button[aria-label="Toggle Search"]')
+      ) {
+        onClose();
+      }
+    };
+
+    // 2. Scroll threshold handler (closes when scrolled down)
+    let initialScrollY = window.scrollY;
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      // Triggers if user scrolls down by more than 20px
+      if (currentScrollY > initialScrollY + 20) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, {passive: true});
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [isOpen, onClose]);
 
   // Query API when deferred term settles
   useEffect(() => {
@@ -76,11 +109,14 @@ export function SearchDrawer({
   if (!isOpen) return null;
 
   return (
-    <div className="w-full bg-neutral-950/95 backdrop-blur-xl border-b border-neutral-800 text-white shadow-2xl transition-all">
+    <div
+      ref={drawerRef}
+      className="w-full bg-neutral-950/95 backdrop-blur-xl border-b border-neutral-800 text-white shadow-2xl transition-all"
+    >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {/* Search Bar Container */}
         <div className="relative flex items-center w-full max-w-2xl mx-auto">
-          <div className="absolute left-3 flex items-center pointer-events-none text-neutral-400">
+          <div className="absolute left-4.5 flex items-center pointer-events-none text-neutral-400">
             <svg
               className="w-5 h-5"
               fill="none"
@@ -102,7 +138,7 @@ export function SearchDrawer({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by brand (Samsung, Apple), model, or style..."
-            className="w-full h-12 bg-neutral-900 border border-neutral-800 rounded-full !pl-10 pr-14 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all shadow-inner"
+            className="w-full h-12 bg-neutral-900 border border-neutral-800 rounded-full pl-11! pr-14 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all shadow-inner"
           />
 
           {searchTerm && (
@@ -174,32 +210,38 @@ export function SearchDrawer({
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {results.products.map((prod) => (
-                  <Link
-                    key={prod.id}
-                    to={`/products/${prod.handle}${targetQuery}`}
-                    onClick={onClose}
-                    className="group bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-600 rounded-xl p-3 flex flex-col transition-all hover:bg-neutral-900"
-                  >
-                    <div className="aspect-square bg-neutral-950 rounded-lg overflow-hidden mb-2.5 flex items-center justify-center">
-                      {prod.featuredImage ? (
-                        <Image
-                          data={prod.featuredImage}
-                          sizes="180px"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      ) : (
-                        <span className="text-neutral-500 text-xs">Case</span>
-                      )}
-                    </div>
-                    <p className="text-xs font-medium text-white truncate group-hover:underline">
-                      {prod.title}
-                    </p>
-                    <div className="text-[11px] text-neutral-400 mt-1">
-                      <Money data={prod.priceRange.minVariantPrice} />
-                    </div>
-                  </Link>
-                ))}
+                {results.products.map((prod) => {
+                  const targetQuery = searchTerm
+                    ? `?search=${encodeURIComponent(searchTerm)}`
+                    : '';
+
+                  return (
+                    <Link
+                      key={prod.id}
+                      to={`/products/${prod.handle}${targetQuery}`}
+                      onClick={onClose}
+                      className="group bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-600 rounded-xl p-3 flex flex-col transition-all hover:bg-neutral-900"
+                    >
+                      <div className="aspect-square bg-neutral-950 rounded-lg overflow-hidden mb-2.5 flex items-center justify-center">
+                        {prod.featuredImage ? (
+                          <Image
+                            data={prod.featuredImage}
+                            sizes="180px"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <span className="text-neutral-500 text-xs">Case</span>
+                        )}
+                      </div>
+                      <p className="text-xs font-medium text-white truncate group-hover:underline">
+                        {prod.title}
+                      </p>
+                      <div className="text-[11px] text-neutral-400 mt-1">
+                        <Money data={prod.priceRange.minVariantPrice} />
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}
