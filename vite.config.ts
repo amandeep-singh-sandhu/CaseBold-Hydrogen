@@ -13,12 +13,12 @@ export default defineConfig({
       // projects that use jsconfig.json, so define Hydrogen's app alias here.
       '~': fileURLToPath(new URL('./app', import.meta.url)),
     },
-    tsconfigPaths: true,
   },
   build: {
     // Allow a strict Content-Security-Policy
     // without inlining assets as base64:
     assetsInlineLimit: 0,
+    outDir: 'dist',
   },
   ssr: {
     optimizeDeps: {
@@ -43,3 +43,4 @@ export default defineConfig({
     allowedHosts: ['.tryhydrogen.dev'],
   },
 });
+
