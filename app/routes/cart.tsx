@@ -16,34 +16,63 @@ export async function action({request, context}: ActionFunctionArgs) {
   const formData = await request.formData();
   const {action, inputs} = CartForm.getFormInput(formData);
 
-  let result;
+  let result: any;
 
   try {
     switch (action) {
-      case CartForm.ACTIONS.LinesAdd:
-        result = await cart.addLines(inputs.lines);
+      case CartForm.ACTIONS.LinesAdd: {
+        const rawLines = Array.isArray(inputs.lines)
+          ? inputs.lines
+          : [inputs.lines];
+        const cleanLines = rawLines.filter(Boolean).map((line: any) => ({
+          merchandiseId: line.merchandiseId,
+          quantity: Number(line.quantity || 1),
+          attributes: line.attributes,
+        }));
+        result = await cart.addLines(cleanLines);
         break;
-      case CartForm.ACTIONS.LinesUpdate:
-        result = await cart.updateLines(inputs.lines);
+      }
+      case CartForm.ACTIONS.LinesUpdate: {
+        const rawLines = Array.isArray(inputs.lines)
+          ? inputs.lines
+          : [inputs.lines];
+        const cleanLines = rawLines.filter(Boolean).map((line: any) => ({
+          id: line.id,
+          quantity: Number(line.quantity),
+          attributes: line.attributes,
+        }));
+        result = await cart.updateLines(cleanLines);
         break;
-      case CartForm.ACTIONS.LinesRemove:
-        result = await cart.removeLines(inputs.lineIds);
+      }
+      case CartForm.ACTIONS.LinesRemove: {
+        const lineIds = Array.isArray(inputs.lineIds)
+          ? inputs.lineIds
+          : [inputs.lineIds].filter(Boolean);
+        result = await cart.removeLines(lineIds);
         break;
+      }
       case CartForm.ACTIONS.DiscountCodesUpdate: {
         const formDiscountCode = inputs.discountCode;
         const discountCodes = (
-          formDiscountCode ? [formDiscountCode] : ['']
+          formDiscountCode ? [formDiscountCode] : []
         ) as string[];
         discountCodes.push(...inputs.discountCodes);
         result = await cart.updateDiscountCodes(discountCodes);
         break;
       }
-      case CartForm.ACTIONS.GiftCardCodesAdd:
-        result = await cart.addGiftCardCodes(inputs.giftCardCodes);
+      case CartForm.ACTIONS.GiftCardCodesAdd: {
+        const formGiftCardCode = inputs.giftCardCode;
+        const giftCardCodes = (
+          formGiftCardCode ? [formGiftCardCode] : []
+        ) as string[];
+        result = await cart.addGiftCardCodes(giftCardCodes);
         break;
-      case CartForm.ACTIONS.GiftCardCodesRemove:
-        result = await cart.removeGiftCardCodes(inputs.giftCardCodes);
+      }
+      case CartForm.ACTIONS.GiftCardCodesRemove: {
+        const appliedGiftCardIds = inputs.giftCardCodes as string[];
+        result = await cart.removeGiftCardCodes(appliedGiftCardIds);
         break;
+      }
       default:
         throw new Response(`Unhandled action: ${action}`, {status: 400});
     }
@@ -63,16 +92,14 @@ export async function loader({context}: LoaderFunctionArgs) {
 export default function CartRoute() {
   const {cart} = useLoaderData<typeof loader>();
 
-  // Collect all line IDs to remove all items at once
   const lineIds = cart?.lines?.nodes?.map((line: any) => line.id) || [];
   const hasItems = lineIds.length > 0;
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-white min-h-[calc(100vh-160px)]">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-800 pb-6 mb-8">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-h-[calc(100vh-160px)]">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-black">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-black">
             Shopping Cart
           </h1>
           <p className="text-sm text-neutral-400 mt-1">
@@ -81,8 +108,6 @@ export default function CartRoute() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Empty Cart Button (Only shown when items exist) */}
-          {/* Empty Cart Button */}
           {hasItems && (
             <CartForm
               route="/cart"
@@ -92,31 +117,28 @@ export default function CartRoute() {
               {(fetcher) => {
                 const isClearing = fetcher.state !== 'idle';
                 return (
-                  <Button
+                  <button
                     type="submit"
-                    variant="secondary"
                     disabled={isClearing}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+                    className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider bg-black text-white hover:bg-neutral-800 disabled:opacity-50 transition-colors rounded cursor-pointer"
                   >
                     {isClearing ? 'Clearing...' : 'Empty Cart'}
-                  </Button>
+                  </button>
                 );
               }}
             </CartForm>
           )}
+
           <Link to="/products" className="w-fit">
-            <Button
-              variant="secondary"
-              className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors"
-            >
+            <button className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wider bg-black text-white hover:bg-neutral-800 transition-colors rounded cursor-pointer">
               <span>&larr;</span>
               <span>Continue Shopping</span>
-            </Button>
+            </button>
           </Link>
         </div>
       </div>
 
-      {/* Cart Items List & Summary */}
+      <hr className="border-neutral-300 mb-8" />
       <CartMain cart={cart} layout="page" />
     </main>
   );

@@ -5,11 +5,6 @@ import {
   type Session,
 } from 'react-router';
 
-/**
- * This is a custom session implementation for your Hydrogen shop.
- * Feel free to customize it to your needs, add helper methods, or
- * swap out the cookie-based implementation with something else!
- */
 export class AppSession implements HydrogenSession {
   public isPending = false;
 
@@ -40,25 +35,25 @@ export class AppSession implements HydrogenSession {
   }
 
   get has() {
-    return this.#session.has;
+    return this.#session.has.bind(this.#session);
   }
 
   get get() {
-    return this.#session.get;
+    return this.#session.get.bind(this.#session);
   }
 
   get flash() {
-    return this.#session.flash;
+    return this.#session.flash.bind(this.#session);
   }
 
   get unset() {
     this.isPending = true;
-    return this.#session.unset;
+    return this.#session.unset.bind(this.#session);
   }
 
   get set() {
     this.isPending = true;
-    return this.#session.set;
+    return this.#session.set.bind(this.#session);
   }
 
   destroy() {

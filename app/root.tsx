@@ -18,6 +18,15 @@ import appStyles from '~/styles/app.css?url';
 import tailwindCss from './styles/tailwind.css?url';
 import {PageLayout} from './components/PageLayout';
 
+// Redux Integration
+import { Provider } from 'react-redux';
+import { store } from '~/store';
+
+// Ensure store is attached to window on the client for testing:
+if (typeof window !== 'undefined') {
+  (window as any).__REDUX_STORE__ = store;
+}
+
 export type RootLoader = typeof loader;
 
 export interface DynamicBrandRule {
@@ -193,15 +202,17 @@ export default function App() {
   const data = useLoaderData<typeof loader>();
 
   return (
-    <Analytics.Provider
-      cart={data.cart}
-      shop={data.shop}
-      consent={data.consent}
-    >
-      <PageLayout {...data}>
-        <Outlet />
-      </PageLayout>
-    </Analytics.Provider>
+    <Provider store={store}>
+      <Analytics.Provider
+        cart={data.cart}
+        shop={data.shop}
+        consent={data.consent}
+      >
+        <PageLayout {...data}>
+          <Outlet />
+        </PageLayout>
+      </Analytics.Provider>
+    </Provider>
   );
 }
 
