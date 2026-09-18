@@ -2,6 +2,8 @@ import {useState} from 'react';
 import {Link} from 'react-router';
 import {SearchDrawer} from './SearchDrawer';
 import type {DynamicBrandRule} from '~/root';
+import {useAppDispatch} from '~/store';
+import {openDrawer} from '~/store/drawerSlice';
 
 interface HeaderProps {
   brandRules?: DynamicBrandRule[];
@@ -9,6 +11,7 @@ interface HeaderProps {
 
 export function Header({brandRules = []}: HeaderProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const dispatch = useAppDispatch();
 
   return (
     <div className="sticky top-0 z-40 w-full">
@@ -39,13 +42,21 @@ export function Header({brandRules = []}: HeaderProps) {
 
           <div className="flex items-center gap-4">
             {/* Cart Link */}
-            <Link
+            {/* <Link
               to="/cart"
               className="text-neutral-400 hover:text-white transition-colors text-sm font-medium"
             >
               Cart
-            </Link>
+            </Link> */}
             {/* Search Icon Trigger */}
+            <button
+              type="button"
+              onClick={() => dispatch(openDrawer())}
+              aria-label="Open Cart Drawer"
+              className="relative flex items-center justify-center p-2 text-white hover:text-neutral-300 transition-colors cursor-pointer"
+            >Cart
+              {/* Keep your exact cart SVG and badge counter here */}
+            </button>
             <button
               type="button"
               aria-label="Toggle Search"

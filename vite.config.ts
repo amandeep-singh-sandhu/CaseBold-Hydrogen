@@ -23,24 +23,22 @@ export default defineConfig({
   ssr: {
     optimizeDeps: {
       /**
-       * Include dependencies here if they throw CJS<>ESM errors.
-       * For example, for the following error:
-       *
-       * > ReferenceError: module is not defined
-       * >   at /Users/.../node_modules/example-dep/index.js:1:1
-       *
-       * Include 'example-dep' in the array below.
+       * Include dependencies here if they throw CJS<>ESM errors in MiniOxygen.
        * @see https://vitejs.dev/config/dep-optimization-options
        */
       include: [
         'react-router > set-cookie-parser',
         'react-router > cookie',
         'react-router',
+        'react-redux',
+        'use-sync-external-store',
+        'use-sync-external-store/shim/with-selector.js',
+        '@reduxjs/toolkit',
       ],
     },
+    noExternal: ['react-redux', 'use-sync-external-store', '@reduxjs/toolkit'],
   },
   server: {
     allowedHosts: ['.tryhydrogen.dev'],
   },
 });
-

@@ -5,11 +5,10 @@ import type {
   FooterQuery,
   HeaderQuery,
 } from 'storefrontapi.generated';
-import {Aside} from '~/components/Aside';
 import {Footer} from '~/components/Footer';
 import {Header} from '~/components/Header';
-import {CartMain} from '~/components/CartMain';
 import {AdminMetaobjectNotice} from '~/components/AdminMetaobjectNotice';
+import {CartDrawer} from '~/components/CartDrawer';
 import type {DynamicBrandRule} from '~/root';
 
 interface PageLayoutProps {
@@ -29,8 +28,13 @@ export function PageLayout({
   children = null,
 }: PageLayoutProps) {
   return (
-    <Aside.Provider>
-      <CartAside cart={cart} />
+    <>
+      {/* Redux Slide-Over Cart Drawer */}
+      <Suspense fallback={null}>
+        <Await resolve={cart}>
+          {(cartData) => <CartDrawer cart={cartData} />}
+        </Await>
+      </Suspense>
 
       {/* Visual reminder if no brand rules exist */}
       <AdminMetaobjectNotice rulesCount={brandRules.length} />
@@ -43,22 +47,6 @@ export function PageLayout({
 
       {/* Custom CaseBold Footer */}
       <Footer />
-    </Aside.Provider>
-  );
-}
-
-function CartAside({cart}: {cart: PageLayoutProps['cart']}) {
-  return (
-    <Aside type="cart" heading="CART">
-      <Suspense
-        fallback={<p className="p-4 text-neutral-400">Loading cart ...</p>}
-      >
-        <Await resolve={cart}>
-          {(cartData) => {
-            return <CartMain cart={cartData} layout="aside" />;
-          }}
-        </Await>
-      </Suspense>
-    </Aside>
+    </>
   );
 }

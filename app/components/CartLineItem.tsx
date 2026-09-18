@@ -4,7 +4,8 @@ import {CartForm, Image, type OptimisticCartLine} from '@shopify/hydrogen';
 import {useVariantUrl} from '~/lib/variants';
 import {Link} from 'react-router';
 import {ProductPrice} from './ProductPrice';
-import {useAside} from './Aside';
+import {useAppDispatch} from '~/store';
+import {closeDrawer} from '~/store/drawerSlice';
 import type {CartApiQueryFragment} from 'storefrontapi.generated';
 
 export type CartLine = OptimisticCartLine<CartApiQueryFragment>;
@@ -21,7 +22,8 @@ export function CartLineItem({
   const {id, merchandise} = line;
   const {product, title, image, selectedOptions} = merchandise;
   const lineItemUrl = useVariantUrl(product.handle, selectedOptions);
-  const {close} = useAside();
+  const dispatch = useAppDispatch();
+  const close = () => dispatch(closeDrawer());
   const lineItemChildren = childrenMap[id];
   const childrenLabelId = `cart-line-children-${id}`;
 
@@ -127,17 +129,38 @@ function CartLineQuantity({line}: {line: CartLine}) {
       <div className="flex items-center gap-4">
         {/* Stepper */}
         <div className="flex items-center border border-neutral-800 rounded-lg bg-neutral-900 overflow-hidden">
-          <CartLineUpdateButton lines={[{id: lineId, quantity: prevQuantity}]}>
-            <button
-              aria-label="Decrease quantity"
-              disabled={quantity <= 1 || !!isOptimistic}
-              name="decrease-quantity"
-              value={prevQuantity}
-              className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold"
+          {/* If quantity is 1, decrementing submits a line removal */}
+          {quantity === 1 ? (
+            <CartForm
+              route="/cart"
+              action={CartForm.ACTIONS.LinesRemove}
+              inputs={{lineIds: [lineId]}}
             >
-              &#8722;
-            </button>
-          </CartLineUpdateButton>
+              <button
+                type="submit"
+                aria-label="Remove item"
+                disabled={!!isOptimistic}
+                className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-red-400 hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold"
+              >
+                &#8722;
+              </button>
+            </CartForm>
+          ) : (
+            <CartLineUpdateButton
+              lines={[{id: lineId, quantity: prevQuantity}]}
+            >
+              <button
+                type="submit"
+                aria-label="Decrease quantity"
+                disabled={!!isOptimistic}
+                name="decrease-quantity"
+                value={prevQuantity}
+                className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold"
+              >
+                &#8722;
+              </button>
+            </CartLineUpdateButton>
+          )}
 
           <span className="w-9 text-center text-xs font-bold text-white">
             {quantity}
@@ -145,6 +168,7 @@ function CartLineQuantity({line}: {line: CartLine}) {
 
           <CartLineUpdateButton lines={[{id: lineId, quantity: nextQuantity}]}>
             <button
+              type="submit"
               aria-label="Increase quantity"
               name="increase-quantity"
               value={nextQuantity}
@@ -156,7 +180,7 @@ function CartLineQuantity({line}: {line: CartLine}) {
           </CartLineUpdateButton>
         </div>
 
-        {/* Remove Button */}
+        {/* Remove Action */}
         <CartLineRemoveButton lineIds={[lineId]} disabled={!!isOptimistic} />
       </div>
 
@@ -179,7 +203,6 @@ function CartLineRemoveButton({
 }) {
   return (
     <CartForm
-      fetcherKey={getUpdateKey(lineIds)}
       route="/cart"
       action={CartForm.ACTIONS.LinesRemove}
       inputs={{lineIds}}
@@ -202,11 +225,8 @@ function CartLineUpdateButton({
   children: React.ReactNode;
   lines: CartLineUpdateInput[];
 }) {
-  const lineIds = lines.map((line) => line.id);
-
   return (
     <CartForm
-      fetcherKey={getUpdateKey(lineIds)}
       route="/cart"
       action={CartForm.ACTIONS.LinesUpdate}
       inputs={{lines}}

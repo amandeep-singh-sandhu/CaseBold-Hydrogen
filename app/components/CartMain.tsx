@@ -1,10 +1,13 @@
 import {useOptimisticCart} from '@shopify/hydrogen';
 import {Link} from 'react-router';
 import type {CartApiQueryFragment} from 'storefrontapi.generated';
-import {useAside} from '~/components/Aside';
 import {CartLineItem, type CartLine} from '~/components/CartLineItem';
 import {CartSummary} from './CartSummary';
 import {Button} from '~/components/Button';
+
+// Redux Integration (Replaces legacy Aside context)
+import {useAppDispatch} from '~/store';
+import {closeDrawer} from '~/store/drawerSlice';
 
 export type CartLayout = 'page' | 'aside';
 
@@ -101,23 +104,25 @@ function CartEmpty({
   hidden: boolean;
   layout?: CartMainProps['layout'];
 }) {
-  const {close} = useAside();
+  const dispatch = useAppDispatch();
+  const close = () => dispatch(closeDrawer());
 
   if (hidden) return null;
 
   return (
-    <div className="text-center py-16 px-4">
-      <h2 className="text-2xl font-bold text-black mb-2">Your Cart is Empty</h2>
-      <p className="text-neutral-400 mb-6">
+    <div className="text-center py-16 px-4 flex flex-col items-center">
+      <h2 className="text-2xl font-bold text-white mb-2">
+        Your Cart is Empty
+      </h2>
+      <p className="text-neutral-400">
         Looks like you haven&rsquo;t added any phone cases to your cart yet.
       </p>
-      <Link to="/products" onClick={close} prefetch="viewport">
-        <Button
-          variant="primary"
-          className="bg-white text-black hover:bg-neutral-200 px-6 py-2.5"
-        >
-          Continue Shopping &rarr;
-        </Button>
+      <Link
+        to="/products"
+        className="w-fit text-lg mt-5 hover:underline-offset-2 hover:underline font-bold uppercase tracking-wide text-white transition-colors rounded cursor-pointer"
+        onClick={close}
+      >
+        Continue Shopping
       </Link>
     </div>
   );
